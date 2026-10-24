@@ -1,6 +1,6 @@
 # Phishing URL Detection
 
-A machine-learning project that classifies a submitted URL as **Phishing** or **Legitimate**. It includes a FastAPI backend, a trained Random Forest model, URL feature extraction, and a lightweight browser-based frontend.
+A machine-learning project that classifies a submitted URL as **Phishing** or **Legitimate**. It includes a FastAPI backend, a trained gradient-boosted classifier, URL feature extraction, SHAP explanations, and a lightweight browser-based frontend.
 
 > **Important:** This project analyzes URL-level features. It does not currently visit the website or inspect its page content. Treat predictions as indicators, not as a guarantee that a website is safe or malicious.
 
@@ -14,19 +14,20 @@ A machine-learning project that classifies a submitted URL as **Phishing** or **
 - [Set up and run the backend](#2-set-up-and-run-the-backend)
 - [Run the frontend](#3-run-the-frontend)
 - [Use the application](#4-use-the-application)
+- [Retrain the model](#5-retrain-the-model-optional)
 - [API reference](#api-reference)
 - [Troubleshooting](#troubleshooting)
 - [Limitations](#limitations)
 
 ## Features
 
-- URL classification using a trained Random Forest model.
-- Extraction of 14 lexical and structural URL features.
-- Phishing and legitimate class-probability values.
+- URL classification using a trained gradient-boosted classifier (scikit-learn `HistGradientBoostingClassifier`).
+- Extraction of 24 lexical, structural and domain-popularity URL features, with no network access at prediction time.
+- Phishing and legitimate class-probability values, using a decision threshold tuned during training.
+- Per-feature SHAP contributions explaining each prediction.
 - Browser-based interface for submitting URLs and viewing results.
-- Feature details shown alongside the prediction.
 - FastAPI interactive API documentation.
-- A saved SHAP explainer artifact for future explainability work.
+- A reproducible training script with grouped (by domain) evaluation and leakage checks.
 
 ## Technology stack
 
@@ -53,16 +54,20 @@ phishing-detection/
 ├── frontend/
 │   └── index.html
 ├── models/
+│   ├── domain_ranks.joblib
 │   ├── feature_columns.joblib
-│   ├── phishing_rf_model.joblib
+│   ├── model_meta.json
+│   ├── phishing_model.joblib
 │   └── shap_explainer.joblib
 ├── notebooks/
 │   └── 01_dataset_exploration.ipynb
 ├── src/
 │   ├── __init__.py
 │   ├── app.py
+│   ├── data.py
 │   ├── features.py
-│   └── model.py
+│   ├── model.py
+│   └── train.py
 ├── .gitignore
 ├── README.md
 └── requirements.txt
@@ -70,12 +75,16 @@ phishing-detection/
 
 - `frontend/index.html` — scanner UI and browser-side API requests.
 - `src/app.py` — FastAPI application and API endpoints.
-- `src/features.py` — extracts features from a submitted URL.
-- `src/model.py` — loads the saved classifier and returns predictions.
-- `models/phishing_rf_model.joblib` — trained Random Forest model.
+- `src/features.py` — extracts features from a submitted URL (used by both training and the API).
+- `src/model.py` — loads the saved artifacts and returns predictions with SHAP contributions.
+- `src/data.py` — loads and combines the raw datasets for training.
+- `src/train.py` — trains, evaluates and saves the model.
+- `models/phishing_model.joblib` — trained classifier.
 - `models/feature_columns.joblib` — expected model feature order.
-- `models/shap_explainer.joblib` — saved SHAP artifact; the current API does not return SHAP explanations.
-- `notebooks/01_dataset_exploration.ipynb` — dataset exploration notebook.
+- `models/shap_explainer.joblib` — SHAP explainer used to compute per-feature contributions.
+- `models/domain_ranks.joblib` — Tranco top-100,000 domain ranks for the popularity feature.
+- `models/model_meta.json` — decision threshold, evaluation metrics and dataset summary from the last training run.
+- `notebooks/01_dataset_exploration.ipynb` — raw-data exploration and SHAP plots for the current model.
 
 ## Prerequisites
 
@@ -168,7 +177,9 @@ The health check should return:
 
 ```json
 {
-  "message": "Phishing Detection API is running"
+  "message": "Phishing Detection API is running",
+  "model": "hist_gradient_boosting",
+  "trained_at": "2026-10-24T09:33:55+00:00"
 }
 ```
 
@@ -210,6 +221,29 @@ The frontend's API address field defaults to `http://127.0.0.1:8000`. If your ba
 
 A “Legitimate” result is not proof that a site is safe. Avoid opening suspicious links just to test them.
 
+## 5. Retrain the model (optional)
+
+The trained artifacts are included, so this is only needed to change features or data. Raw data lives in `data/raw/`, which is not committed. Download these files:
+
+| File | Source | Used for |
+| --- | --- | --- |
+| `data/raw/phishtank.csv` | [PhishTank](https://phishtank.org/developer_info.php) verified online feed (CSV) | Phishing URLs |
+| `data/raw/hannousse/dataset_B_05_2020.csv` | Hannousse & Yahiouche (2021), [Mendeley Data `c2gw7fy2j4`](https://data.mendeley.com/datasets/c2gw7fy2j4/3) | Legitimate and phishing URLs |
+| `data/raw/tranco.csv` | [Tranco](https://tranco-list.eu/) top-1M list (`rank,domain`, no header) | Domain popularity feature |
+| `data/raw/iscx/Benign_list_big_final.csv` *(optional)* | [ISCX-URL-2016](https://www.unb.ca/cic/datasets/url-2016.html) benign URLs (registration required) | Extra legitimate URLs, used automatically when present |
+
+Then, from the project root with the virtual environment active:
+
+```bash
+python -m src.train
+```
+
+The script prints a leakage report, cross-validation results for a random forest and a gradient-boosting model, held-out test metrics, and sanity checks. It then overwrites the files in `models/`. Restart the API afterwards.
+
+Evaluation is grouped by registered domain, so no domain appears in both the training and test sets. Last run (see `models/model_meta.json`): test PR-AUC 0.976, F1 0.925, legitimate recall 0.83, phishing recall 0.94, and 27 of 30 hand-picked real deep links (GitHub, Wikipedia, PayPal, Amazon and others) classified as legitimate.
+
+Legitimate URLs come from a dataset whose URLs include real paths. The previous version used `https://<domain>` homepages only, so the model learned that any URL with a path was phishing.
+
 ## API reference
 
 ### `GET /`
@@ -222,7 +256,7 @@ curl http://127.0.0.1:8000/
 
 ### `POST /predict`
 
-Accepts a URL and returns the prediction, class probabilities, and extracted features.
+Accepts a URL and returns the prediction, class probabilities, the decision threshold, extracted features, and SHAP contributions. A positive contribution pushes the score toward phishing and a negative one toward legitimate, in log-odds units.
 
 **Request:**
 
@@ -237,34 +271,35 @@ Content-Type: application/json
 }
 ```
 
-**Example response shape** (values are illustrative):
+**Example response** (`features` and `contributions` shortened; the real response has all 24 features):
 
 ```json
 {
   "url": "https://example.com/login",
   "prediction": "Legitimate",
-  "phishing_probability": 0.12,
-  "legitimate_probability": 0.88,
+  "phishing_probability": 0.18,
+  "legitimate_probability": 0.82,
+  "threshold": 0.2901,
   "features": {
-    "url_length": 25,
-    "hostname_length": 11,
+    "url_length": 17,
     "path_length": 6,
-    "num_dots": 1,
-    "num_hyphens": 0,
-    "num_slashes": 3,
-    "num_digits": 0,
-    "num_special_chars": 5,
-    "has_https": 1,
-    "has_at_symbol": 0,
-    "has_query": 0,
-    "has_ip": 0,
     "num_subdomains": 0,
+    "domain_rank_log10": 2.2601,
+    "is_free_hosting": 0,
     "has_suspicious_keyword": 1
+  },
+  "contributions": {
+    "url_length": 0.16,
+    "path_length": 0.61,
+    "num_subdomains": -0.44,
+    "domain_rank_log10": -3.19,
+    "is_free_hosting": -0.08,
+    "has_suspicious_keyword": 1.77
   }
 }
 ```
 
-The real response values depend on the URL and the trained model. You can also send requests through the interactive Swagger UI at `http://127.0.0.1:8000/docs`.
+`prediction` is `Phishing` when `phishing_probability` is at least `threshold`. Lengths and counts are measured on a normalized URL, without the scheme, a leading `www.` or a trailing `/`. The real response values depend on the URL and the trained model. You can also send requests through the interactive Swagger UI at `http://127.0.0.1:8000/docs`.
 
 ## Troubleshooting
 
@@ -284,8 +319,11 @@ The backend currently enables CORS in `src/app.py`. If you change the frontend o
 Run Uvicorn from the project root, not from inside `src/`. Verify that these files exist:
 
 ```text
-models/phishing_rf_model.joblib
+models/phishing_model.joblib
 models/feature_columns.joblib
+models/shap_explainer.joblib
+models/domain_ranks.joblib
+models/model_meta.json
 ```
 
 ### Dependency installation fails
@@ -307,16 +345,18 @@ Then update the frontend API address to `http://127.0.0.1:8001`. To change the f
 
 ## Limitations
 
-- Classification is based on URL-level lexical and structural features; the backend does not fetch the target webpage.
+- Classification is based on URL-level lexical and structural features plus an offline domain-popularity lookup; the backend does not fetch the target webpage.
 - DNS reputation, certificate information, redirects, and page content are not currently analyzed.
-- The SHAP explainer file is included, but SHAP explanations are not currently returned by `/predict`.
+- Popular domains are strongly trusted, so phishing on a compromised popular site can be missed. Pages on user-content platforms (Google Docs/Sites, SharePoint, Weebly and similar) get no popularity credit, so legitimate shared documents may be flagged.
+- About 1 in 6 legitimate URLs in the held-out test set is flagged as phishing. Long authentication URLs (for example OAuth redirects) are the most common false positive.
+- The legitimate training URLs date from 2020, while most phishing URLs are recent, so some patterns may reflect when the data was collected.
 - Model probabilities are estimates from the trained classifier, not absolute certainty.
 - The current backend does not include authentication, rate limiting, or production-grade monitoring.
 - The current CORS configuration is permissive and should be restricted before production deployment.
 
 ## Future improvements
 
-- Integrate SHAP explanations into the API response.
+- Add more recent legitimate URLs (for example ISCX-URL-2016 or a crawl of popular sites' internal links).
 - Add stronger URL validation and automated tests.
 - Add domain-reputation, DNS, certificate, or webpage-content signals.
 - Restrict CORS and add rate limiting, logging, and monitoring.
