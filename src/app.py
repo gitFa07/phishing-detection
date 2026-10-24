@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from src.model import predict_url
+from src.model import meta, predict_url
 
 
 app = FastAPI(
     title="Phishing URL Detection API",
-    description="API for detecting phishing URLs using a Random Forest model",
-    version="1.0.0",
+    description="API for detecting phishing URLs from lexical URL features and domain popularity",
+    version="2.0.0",
 )
 
 
@@ -17,7 +17,9 @@ class URLRequest(BaseModel):
 @app.get("/")
 def root():
     return {
-        "message": "Phishing Detection API is running"
+        "message": "Phishing Detection API is running",
+        "model": meta["model"],
+        "trained_at": meta["trained_at"],
     }
 
 

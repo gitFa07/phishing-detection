@@ -1,0 +1,103 @@
+{
+  "model": "hist_gradient_boosting",
+  "threshold": 0.2901,
+  "trained_at": "2026-10-24T09:33:55+00:00",
+  "dataset": {
+    "rows": 16902,
+    "by_label_source": {
+      "0:hannousse": 5634,
+      "1:hannousse": 5227,
+      "1:phishtank": 6041
+    },
+    "train_rows": 14105,
+    "test_rows": 2797,
+    "split": "GroupShuffleSplit by registered domain, 80/20"
+  },
+  "leakage_report": {
+    "has_path": {
+      "legit": 0.607,
+      "phishing": 0.703,
+      "gap": 0.096
+    },
+    "has_query": {
+      "legit": 0.028,
+      "phishing": 0.191,
+      "gap": 0.163
+    },
+    "has_www": {
+      "legit": 0.666,
+      "phishing": 0.115,
+      "gap": 0.551
+    },
+    "https": {
+      "legit": 0.439,
+      "phishing": 0.649,
+      "gap": 0.21
+    },
+    "trailing_slash": {
+      "legit": 0.458,
+      "phishing": 0.304,
+      "gap": 0.154
+    }
+  },
+  "tranco_ranked_share_by_label": {
+    "0": 0.428,
+    "1": 0.091
+  },
+  "cv": {
+    "random_forest": {
+      "threshold": 0.3677,
+      "pr_auc": 0.9644,
+      "roc_auc": 0.9482,
+      "f1": 0.9355,
+      "legit_recall": 0.8215,
+      "phishing_recall": 0.9547
+    },
+    "hist_gradient_boosting": {
+      "threshold": 0.2901,
+      "pr_auc": 0.9783,
+      "roc_auc": 0.9577,
+      "f1": 0.9344,
+      "legit_recall": 0.8228,
+      "phishing_recall": 0.9521
+    }
+  },
+  "test": {
+    "pr_auc": 0.9759,
+    "roc_auc": 0.9624,
+    "f1": 0.9253,
+    "legit_recall": 0.8337,
+    "phishing_recall": 0.945
+  },
+  "sanity": {
+    "known_good_legit": "27/30",
+    "known_good_flagged": [
+      [
+        "https://docs.google.com/document/d/1A2b3C4d5E6f7G8h9I0j/edit",
+        0.994
+      ],
+      [
+        "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=abc&response_type=code",
+        0.803
+      ],
+      [
+        "https://secure.chase.com/web/auth/dashboard",
+        0.355
+      ]
+    ],
+    "test_phishing_recall_by_source": {
+      "hannousse": 0.9456,
+      "phishtank": 0.9444
+    },
+    "homepage_only": {
+      "n_legit": 409,
+      "n_phishing": 454,
+      "pr_auc": 0.9623,
+      "roc_auc": 0.9459,
+      "f1": 0.8924,
+      "legit_recall": 0.9267,
+      "phishing_recall": 0.859
+    }
+  },
+  "feature_importance": null
+}
