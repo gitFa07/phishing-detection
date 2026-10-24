@@ -166,8 +166,8 @@ python -m uvicorn src.app:app --reload
 
 The API should be available at:
 
-- API base URL: `http://127.0.0.1:8000`
-- Health check: `http://127.0.0.1:8000/`
+- Web app (frontend served by the API): `http://127.0.0.1:8000`
+- Health check: `http://127.0.0.1:8000/health`
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 
@@ -184,6 +184,8 @@ The health check should return:
 ```
 
 ## 3. Run the frontend
+
+The API already serves the frontend at `http://127.0.0.1:8000`, so this step is optional. Use it only if you want to serve `frontend/index.html` separately.
 
 Open a **second terminal** in the project root. Do not stop the backend terminal.
 
@@ -208,16 +210,15 @@ python -m http.server 5500
 
 Then open `http://127.0.0.1:5500`.
 
-The frontend's API address field defaults to `http://127.0.0.1:8000`. If your backend is running at another address, enter that backend base URL in the field at the top of the page.
+When served from port 5500 (or opened as a file), the page calls the API at `http://127.0.0.1:8000`. When served by the API itself, it calls the server it was loaded from.
 
 ## 4. Use the application
 
-1. Start the backend and frontend using the instructions above.
-2. Open `http://127.0.0.1:5500`.
-3. Confirm that the page reports **API connected**.
-4. Enter a full URL, such as `https://example.com/login`, or choose one of the example URLs.
-5. Select **Check URL**.
-6. Review the classification, probability scores, and extracted URL features.
+1. Start the backend using the instructions above.
+2. Open `http://127.0.0.1:8000`.
+3. Enter a full URL, such as `https://example.com/login`, or choose one of the example URLs.
+4. Select **Check URL**.
+5. Review the classification, probability scores, and extracted URL features.
 
 A “Legitimate” result is not proof that a site is safe. Avoid opening suspicious links just to test them.
 
@@ -244,14 +245,35 @@ Evaluation is grouped by registered domain, so no domain appears in both the tra
 
 Legitimate URLs come from a dataset whose URLs include real paths. The previous version used `https://<domain>` homepages only, so the model learned that any URL with a path was phishing.
 
+## Deploy to Render
+
+The repository includes a `Dockerfile` (installs only the runtime packages in `requirements-deploy.txt`) and a `render.yaml` blueprint.
+
+1. Push the repository to GitHub.
+2. In the [Render dashboard](https://dashboard.render.com/), choose **New → Blueprint** and connect the repository. Render reads `render.yaml` and creates a free Docker web service.
+3. When the build finishes, open the service URL. The same URL serves the page, `/predict`, `/health` and `/docs`.
+
+Render redeploys on every push to the connected branch. Free services sleep after about 15 minutes without traffic, so the first request after that takes longer.
+
+To test the image locally:
+
+```bash
+docker build -t phishing-detection .
+docker run --rm -p 8000:8000 phishing-detection
+```
+
 ## API reference
 
 ### `GET /`
 
-Checks whether the backend is running.
+Serves the frontend page.
+
+### `GET /health`
+
+Checks whether the backend is running and reports the model name and training date.
 
 ```bash
-curl http://127.0.0.1:8000/
+curl http://127.0.0.1:8000/health
 ```
 
 ### `POST /predict`

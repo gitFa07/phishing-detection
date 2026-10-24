@@ -1,7 +1,12 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.model import meta, predict_url
 
+
+FRONTEND_INDEX = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
 
 app = FastAPI(
     title="Phishing URL Detection API",
@@ -14,8 +19,13 @@ class URLRequest(BaseModel):
     url: str
 
 
-@app.get("/")
-def root():
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(FRONTEND_INDEX)
+
+
+@app.get("/health")
+def health():
     return {
         "message": "Phishing Detection API is running",
         "model": meta["model"],

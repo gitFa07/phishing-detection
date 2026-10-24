@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
   Phishing URL Detection — frontend
-  Talks to the FastAPI backend at DEFAULT_API: POST /predict.
-  Open this file in a browser, or serve it:  python -m http.server 5500 --directory frontend
+  Served by the FastAPI app at GET /, and talks to it at POST /predict.
+  Also works standalone (python -m http.server 5500 --directory frontend) against a local API on :8000.
 -->
 <html lang="en">
 <head>
@@ -428,7 +428,11 @@
 (function () {
   "use strict";
 
-  var DEFAULT_API = "http://127.0.0.1:8000";
+  // Served by FastAPI (local uvicorn or deployed): same origin. Opened as a file or
+  // via the port-5500 static server: the local API.
+  var DEFAULT_API = (location.protocol === "file:" || location.port === "5500")
+    ? "http://127.0.0.1:8000"
+    : location.origin;
 
   // Feature keys exactly as returned by the backend, with plain-language names.
   var GROUPS = [
@@ -497,7 +501,7 @@
 
   function updateLinks() {
     $("foot-docs").href = apiBase + "/docs";
-    $("foot-health").href = apiBase + "/";
+    $("foot-health").href = apiBase + "/health";
   }
 
   function fetchWithTimeout(url, options, ms) {

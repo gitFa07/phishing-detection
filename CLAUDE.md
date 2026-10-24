@@ -12,8 +12,8 @@ Run everything from the project root (model paths and the `src.` package import 
 
 ```bash
 python -m pip install -r requirements.txt          # install deps (into .venv)
-python -m uvicorn src.app:app --reload             # API on http://127.0.0.1:8000 (Swagger at /docs)
-python -m http.server 5500 --directory frontend    # frontend on http://127.0.0.1:5500
+python -m uvicorn src.app:app --reload             # API + page on http://127.0.0.1:8000 (Swagger at /docs)
+python -m http.server 5500 --directory frontend    # optional standalone frontend on http://127.0.0.1:5500
 python -m src.train                                # retrain; overwrites everything in models/
 ```
 
@@ -23,6 +23,8 @@ Quick check without the server:
 python -c "from src.model import predict_url; print(predict_url('https://example.com/login'))"
 ```
 
+Deployment: `Dockerfile` + `render.yaml` (Render, free Docker web service, health check `/health`). The image installs `requirements-deploy.txt`, a runtime-only subset of `requirements.txt`. Keep its scikit-learn/shap/numpy/pandas pins equal to `requirements.txt`, or the pickled artifacts may fail to load.
+
 There is no test suite, linter, formatter config, or frontend build step. The closest thing to tests is `python -m src.train`, which prints held-out metrics and sanity suites (`KNOWN_GOOD_URLS` in `src/train.py`, per-source phishing recall, homepage-only subset) and records them in `models/model_meta.json`.
 
 ## Architecture
@@ -31,8 +33,8 @@ Request flow: `frontend/index.html` → `POST /predict` (`src/app.py`) → `pred
 
 - **`src/features.py`** is the single feature extractor for both training and serving. It measures a **canonicalized** URL (scheme, leading `www.` and trailing `/` stripped, host lowercased) so that dataset-collection artifacts don't become features. `domain_rank_log10` reads `models/domain_ranks.joblib`, which `src/train.py` builds from `data/raw/tranco.csv`. Free-hosting, user-content hosts and shorteners (`FREE_HOSTING`, `SHORTENERS`) are deliberately treated as unranked.
 - **`src/model.py`** loads `phishing_model.joblib`, `feature_columns.joblib`, `shap_explainer.joblib` and `model_meta.json` at **import time**, so a missing or incompatible artifact breaks app startup, not the first request. It labels a URL Phishing when `phishing_probability >= meta["threshold"]` (tuned on CV, not 0.5), and returns `contributions` (SHAP values toward phishing). It handles both the RF `(n, f, 2)` and HGB `(n, f)` SHAP output shapes. Label encoding: `1` = Phishing, `0` = Legitimate.
-- **`src/app.py`** defines `GET /` (health plus model name and training date from `model_meta.json`) and `POST /predict` (`{"url": str}`). The CORS middleware (allow all origins) is added at the bottom of the file, after the routes.
-- **`frontend/index.html`** is self-contained vanilla HTML/CSS/JS. The API base URL is the `DEFAULT_API` constant (`http://127.0.0.1:8000`). The `GROUPS`/`BOOLEAN_KEYS` tables give each feature key a display name. Unknown keys fall into an "Other" group, and the "Effect" column renders when `contributions` is present.
+- **`src/app.py`** defines `GET /` (serves `frontend/index.html`), `GET /health` (model name and training date from `model_meta.json`) and `POST /predict` (`{"url": str}`). The CORS middleware (allow all origins) is added at the bottom of the file, after the routes.
+- **`frontend/index.html`** is self-contained vanilla HTML/CSS/JS. `DEFAULT_API` is the page's own origin, or `http://127.0.0.1:8000` when opened as a file or from port 5500. The `GROUPS`/`BOOLEAN_KEYS` tables give each feature key a display name. Unknown keys fall into an "Other" group, and the "Effect" column renders when `contributions` is present.
 
 ### Training (`src/data.py`, `src/train.py`)
 
