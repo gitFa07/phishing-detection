@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from pathlib import Path
+from fastapi.responses import FileResponse
 
 from src.model import meta, predict_url
 
@@ -24,8 +26,7 @@ class URLRequest(BaseModel):
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    return Response(status_code=204)
-
+    return FileResponse(Path(__file__).parent / "favicon.png", media_type="image/png")
 
 @app.get("/")
 def root():
