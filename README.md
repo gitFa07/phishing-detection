@@ -1,4 +1,4 @@
-# Phishing URL Detection
+# Phishing URL Detection.
 
 A machine-learning project that classifies a submitted URL as **Phishing** or **Legitimate**. It includes a FastAPI backend, a trained gradient-boosted classifier, URL feature extraction, SHAP explanations, and a lightweight browser-based frontend.
 
